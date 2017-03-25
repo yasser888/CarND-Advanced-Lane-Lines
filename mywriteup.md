@@ -20,7 +20,6 @@ The goals / steps of this project are the following:
 
 [calibration_test_0]: ./examples/test_calibration_0.jpg "Test calibration 0"
 [calibration_test_1]: ./examples/test_calibration_1.jpg "Test calibration 1"
-[output_2_0]: ./examples/output_2_0.png "tt "
 
 [gradients_0]: ./examples/gradients_0.jpg "Gradients try 0"
 [combined_0]: ./examples/comined_without_s.jpg "Combinded without S chanel"
