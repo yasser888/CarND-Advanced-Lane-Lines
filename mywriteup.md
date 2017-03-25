@@ -18,13 +18,19 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
+[calibration_test_0]: ./examples/test_calibration_0.jpg "Test calibration 0"
+[calibration_test_1]: ./examples/test_calibration_1.jpg "Test calibration 1"
+
+[gradients_0]: ./examples/gradients_0.jpg "Gradients try 0"
+[combined_0]: ./examples/comined_without_s.jpg "Combinded without S chanel"
+[hls_chanels]: ./examples/hls_chanels.jpg "HLS chanels"
+[pipeline_result]: ./examples/result_pipeline.jpg "Pipeline result"
+[warped_points]: ./examples/warped_points.jpg "Warped Points"
+[warped]: ./examples/warped.jpg "Warped"
+
+[detect_lines]: ./examples/detect_lines.jpg "Detecting lines"
+[detected_lines]: ./examples/detected_lines.jpg "Detected lines"
+[detected_lines_more_images]: ./examples/detected_lines_more_images.jpg "More detected lines"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 ###Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
@@ -51,27 +57,64 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 
 ####1. Provide an example of a distortion-corrected image.
 To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][./examples/output_2_1.png]
-####2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+![alt text][calibration_test_1]
 
-![alt text][./examples/output_2_0.png]
+####2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
+
+Gradients:
+![alt text][gradients_0] 
+
+As it is seen best result here were seen on Thresholded Gradient X image.
+
+On the next step I decided to combine previous results using rule:
+```
+    combined[((grad_x_binary == 1) & (grad_y_binary == 1)) & ((mag_binary == 1) | (dir_binary == 1))] = 1
+```
+That results to:
+
+![alt text][combined_0]
+
+But as it is seen left yellow line was almost lost in this configuration. 
+
+To restore yellow line I decided to take a look on S chanel after converting image to HLS colorspace:
+ 
+![alt text][hls_chanels]
+
+
+Combining thresholds for S chanel and results for previous thresholds processing I got the next frame: 
+```
+    combined_binary[(binary_s == 1) | (combined == 1)] = 1
+```
+
+![alt text][pipeline_result]
+
+This result will be used later to find land lanes.
 
 ####3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
 The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
 
 ```
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
+```
+src = np.float32([[240, 686], 
+                  [1070, 686], 
+                  [738, 480], 
+                  [545,  480]])
+                      
+dst = np.float32([[300, 700], 
+                  [1000, 700], 
+                  [1000, 300], 
+                  [300, 300]])
+
+```
+This resulted in the following source and destination points:
+
+| Source        | Destination   | 
+|:-------------:|:-------------:| 
+| 240, 686      | 300, 700      | 
+| 1070, 686     | 1000, 700     |
+| 738, 480      | 1000, 300     |
+| 545,  480     | 300, 300      |
 
 ```
 This resulted in the following source and destination points:
@@ -91,17 +134,34 @@ I verified that my perspective transform was working as expected by drawing the 
 
 Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
 
-![alt text][image5]
+
+Input for this step was taken as a combined image after preprocessing pipeline and converted  to 'bird-eye' view using perspective transformation:
+
+Then calculating a histogram and find out its peaks I found where lines are located. These points are treated as a starting ponits for lines detection algorithm.
+On the next step image was separated by 9 windows and moving from the bottom to the top for each line. In each line was selected pixels that are not zero.
+Each next window was recentered using mean position of non 0 pixels detected in previous step.
+
+After pixels were detected polyfit function was used to find сoefficients for  second order polynomial.
+```
+# Fit a second order polynomial to each
+line.current_fit = np.polyfit(line.ally, line.allx, 2)
+```
+
+Resulting polinomial image below.
+
+![alt text][detect_lines]
 
 ####5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
-I did this in lines # through # in my code in `my_other_file.py`
+I did this in `__calculate_radius_of_curvature()` and `__calculate_offest_from_center()` methods in cell 16 of my notebook.
+
+![alt_text][detected_lines]
 
 ####6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
 I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
 
-![alt text][image6]
+![alt text][detected_lines_more_images]
 
 ---
 
@@ -109,7 +169,8 @@ I implemented this step in lines # through # in my code in `yet_another_file.py`
 
 ####1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Here's a [link to my video result](./project_video.mp4)
+Here's a [link to my video result](./project_video.mp4) or https://youtu.be/k2c5cSZ3qew
+
 
 ---
 
